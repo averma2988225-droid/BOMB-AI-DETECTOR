@@ -1,17 +1,19 @@
 import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Upload, Image as ImageIcon, X, Scan } from 'lucide-react';
+import { Upload, X, Scan, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface ImageUploaderProps {
-  onImageSelect: (imageData: { url: string; isXray: boolean }) => void;
+  onImageSelect: (imageData: { base64: string; isXray: boolean }) => void;
   isProcessing: boolean;
+  error?: string | null;
 }
 
-export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProps) {
+export function ImageUploader({ onImageSelect, isProcessing, error }: ImageUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [isXray, setIsXray] = useState(false);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -37,8 +39,9 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const url = e.target?.result as string;
-        setPreview(url);
+        const base64 = e.target?.result as string;
+        setPreview(base64);
+        setImageBase64(base64);
       };
       reader.readAsDataURL(file);
     }
@@ -51,13 +54,14 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
   };
 
   const handleAnalyze = () => {
-    if (preview) {
-      onImageSelect({ url: preview, isXray });
+    if (imageBase64) {
+      onImageSelect({ base64: imageBase64, isXray });
     }
   };
 
   const clearImage = () => {
     setPreview(null);
+    setImageBase64(null);
   };
 
   return (
@@ -105,6 +109,7 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
               size="icon"
               className="absolute top-2 right-2 h-8 w-8"
               onClick={clearImage}
+              disabled={isProcessing}
             >
               <X className="w-4 h-4" />
             </Button>
@@ -113,11 +118,19 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
               <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
                 <div className="text-center space-y-3">
                   <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto" />
-                  <p className="text-sm font-mono text-primary">ANALYZING...</p>
+                  <p className="text-sm font-mono text-primary">ANALYZING IMAGE...</p>
+                  <p className="text-xs text-muted-foreground">AI threat detection in progress</p>
                 </div>
               </div>
             )}
           </div>
+
+          {error && (
+            <div className="p-3 rounded bg-destructive/10 border border-destructive/30 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -125,6 +138,7 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
                 type="checkbox"
                 checked={isXray}
                 onChange={(e) => setIsXray(e.target.checked)}
+                disabled={isProcessing}
                 className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-primary"
               />
               <span className="text-sm font-mono">X-Ray Modality</span>
@@ -132,11 +146,11 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
 
             <Button 
               onClick={handleAnalyze} 
-              disabled={isProcessing}
+              disabled={isProcessing || !imageBase64}
               className="flex-1 gap-2"
             >
               <Scan className="w-4 h-4" />
-              {isProcessing ? 'Processing...' : 'Analyze Threat'}
+              {isProcessing ? 'Analyzing...' : 'Analyze Threat'}
             </Button>
           </div>
         </div>
