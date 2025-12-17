@@ -12,18 +12,22 @@ import { SystemStatus } from '@/components/SystemStatus';
 import { FalsePositiveInfo } from '@/components/FalsePositiveInfo';
 import { 
   classifyThreat, 
-  getDemoSafeFallback,
   type ClassificationResult,
   type ObjectClass,
   type VisualFeature
 } from '@/lib/threatClassification';
-import { Eye, Clock, Layers } from 'lucide-react';
+import { analyzeImage } from '@/lib/threatAnalysisApi';
+import { Eye, Clock, Layers, Zap } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<DemoScenario | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisMode, setAnalysisMode] = useState<'demo' | 'live'>('live');
+  const { toast } = useToast();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -34,8 +38,10 @@ const Index = () => {
     setSelectedScenario(scenario);
     setIsProcessing(true);
     setResult(null);
+    setAnalysisError(null);
+    setAnalysisMode('demo');
 
-    // Simulate processing delay
+    // Simulate processing delay for demo
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     const detectionResult = classifyThreat({
@@ -49,18 +55,34 @@ const Index = () => {
     setIsProcessing(false);
   };
 
-  const handleImageAnalysis = async (imageData: { url: string; isXray: boolean }) => {
+  const handleImageAnalysis = async (imageData: { base64: string; isXray: boolean }) => {
     setIsProcessing(true);
     setResult(null);
     setSelectedScenario(null);
+    setAnalysisError(null);
+    setAnalysisMode('live');
 
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // For uploaded images, use demo-safe fallback
-    const fallbackResult = getDemoSafeFallback();
-    setResult(fallbackResult);
-    setIsProcessing(false);
+    try {
+      const analysisResult = await analyzeImage(imageData.base64, imageData.isXray);
+      setResult(analysisResult);
+      
+      toast({
+        title: "Analysis Complete",
+        description: `Detected: ${analysisResult.primaryClass.replace('_', ' ')} (${(analysisResult.confidence * 100).toFixed(0)}% confidence)`,
+      });
+    } catch (error) {
+      console.error('Analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to analyze image';
+      setAnalysisError(errorMessage);
+      
+      toast({
+        title: "Analysis Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -74,6 +96,26 @@ const Index = () => {
           {/* Left Sidebar - Demo Controls */}
           <aside className="lg:col-span-3 space-y-4">
             <SystemStatus isProcessing={isProcessing} />
+            
+            {/* Live Analysis Indicator */}
+            <div className="glass-card rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Analysis Mode
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`status-dot ${analysisMode === 'live' ? 'status-online' : 'bg-muted-foreground'}`} />
+                <span className="text-sm font-mono">
+                  {analysisMode === 'live' ? 'LIVE AI Analysis' : 'Demo Scenario'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Upload any image for real AI-powered threat detection
+              </p>
+            </div>
+            
             <DemoScenarios 
               onSelectScenario={handleScenarioSelect}
               selectedId={selectedScenario?.id}
@@ -97,12 +139,24 @@ const Index = () => {
               <ImageUploader 
                 onImageSelect={handleImageAnalysis}
                 isProcessing={isProcessing}
+                error={analysisError}
               />
             </section>
 
             {/* Results Section */}
             {result && (
               <div className="space-y-4 animate-fade-in">
+                {/* Analysis Mode Badge */}
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-mono px-2 py-1 rounded ${
+                    analysisMode === 'live' 
+                      ? 'bg-status-online/20 text-status-online' 
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {analysisMode === 'live' ? '● LIVE AI RESULT' : '○ DEMO SCENARIO'}
+                  </span>
+                </div>
+
                 {/* Primary Classification */}
                 <section className="glass-card rounded-lg p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -175,8 +229,11 @@ const Index = () => {
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Eye className="w-8 h-8 text-primary/50" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Select a demo scenario or upload an image to begin analysis
+                <p className="text-sm text-muted-foreground mb-2">
+                  Upload an image for real AI-powered threat detection
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Or select a demo scenario to see example classifications
                 </p>
               </div>
             )}
@@ -207,7 +264,7 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono text-muted-foreground">
             <p>SENTINEL AI v2.0 — Context-Aware Threat Detection</p>
-            <p>Classification Engine: ACTIVE | False Positive Mitigation: ENABLED</p>
+            <p>Classification Engine: ACTIVE | AI Analysis: ENABLED</p>
           </div>
         </div>
       </footer>
