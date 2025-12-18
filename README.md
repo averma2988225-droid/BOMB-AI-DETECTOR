@@ -166,15 +166,4 @@ AI/ML Developer | Hackathon Finalist | Product Builder
 
 This project is licensed under the **MIT License**.
 
-```
 
----
-
-If you want, I can also:
-- Customize this README **specifically for a hackathon**
-- Convert it into a **project report**
-- Add **badges, demo GIFs, and screenshots**
-- Rewrite it for **GitHub trending style**
-
-Just tell me.
-```
