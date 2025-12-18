@@ -70,30 +70,43 @@ serve(async (req) => {
       );
     }
 
+    // Support both Lovable AI and OpenAI for local development
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    
+    const useOpenAI = !LOVABLE_API_KEY && OPENAI_API_KEY;
+    const apiKey = LOVABLE_API_KEY || OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      console.error('No API key configured (LOVABLE_API_KEY or OPENAI_API_KEY)');
       return new Response(
-        JSON.stringify({ success: false, error: 'AI service not configured' }),
+        JSON.stringify({ success: false, error: 'AI service not configured. Set LOVABLE_API_KEY or OPENAI_API_KEY.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Analyzing image with Lovable AI...');
+    console.log('Analyzing image with', useOpenAI ? 'OpenAI' : 'Lovable AI');
     console.log('Image modality:', isXray ? 'X-RAY' : 'RGB');
 
     const modalityContext = isXray 
       ? 'This is an X-RAY scan image. You can see internal structures, wiring, and components that would not be visible in a normal photo.'
       : 'This is a standard RGB photograph. Only analyze visually apparent features - do not assume internal components.';
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Choose endpoint and model based on available API key
+    const apiEndpoint = useOpenAI 
+      ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://ai.gateway.lovable.dev/v1/chat/completions';
+    
+    const model = useOpenAI ? 'gpt-4o' : 'google/gemini-2.5-flash';
+
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { 
